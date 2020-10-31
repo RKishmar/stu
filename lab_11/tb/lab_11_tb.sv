@@ -23,24 +23,22 @@ module lab_11_tb;
 //-----> DUT inst <-----------------------------------------------------------------------------------
 
 lab_11_top    #(
-  .ORDER       ( ORDER_TB  ),
-  .WIDTH       ( WIDTH_TB  ) )
+  .ORDER       ( ORDER_TB      ),
+  .WIDTH       ( WIDTH_TB      ) )
 lab_11_inst_tb (  
-  .clk_i       ( clk_tb    ),
-  .srst_i      ( srst_tb   ),
-  .data_i      ( data_tb_i ),
-  .data_o      ( data_tb_o )
+  .clk_i       ( clk_tb        ),
+  .srst_i      ( srst_tb       ),
+  .data_i      ( top_if_i.data ),
+  .data_o      ( top_if_o.data )
 );
 
 //-----> transaction <--------------------------------------------------------------------------------
 
   class packet;
-    struct {
-      rand bit [ WIDTH_TB - 1 : 0 ] data;
-    } str;
+    struct { rand bit [ WIDTH_TB - 1 : 0 ] data; } str;
         
     function void randomize_packet;
-        this.str.data = $random;
+      this.str.data = $random;
     endfunction
           
     function void print;
@@ -58,13 +56,10 @@ lab_11_inst_tb (
     task run;
       forever
         begin
-          #( $urandom_range( GEN_DEL_MAdata ) );
-          for ( int i = 0; i < WIDTH_TB; i++ ) // NB! change i max later 
-            begin
-              pck.randomize_packet;
-              gen_mbx.put( pck );
-              @( posedge clk_tb );
-            end          
+          pck.randomize_packet;
+          gen_mbx.put( pck );
+          @( posedge clk_tb );
+          //$display ( " GEN PACKET : %0p ", this.pck );
         end
 
     endtask : run  
@@ -73,7 +68,7 @@ lab_11_inst_tb (
 //-----> driver <--------------------------------------------------------------------------------
 
   class driver;
-    virtual lab_11_if #( ORDER_TB, WIDTH_TB ) .sink_if drv_if; 
+    virtual lab_11_if #( ORDER_TB, WIDTH_TB ) drv_if; 
     mailbox dri_mbx;
     packet  pck = new;
       
@@ -82,17 +77,18 @@ lab_11_inst_tb (
       forever 
         begin
           dri_mbx.get( pck );
-          //drv_if.data  = 0; // pck.str.data;     
+          drv_if.data  = this.pck.str.data;     
           @ ( posedge clk_tb );
+		  //$display ( " DRV PACKET : %0p ", this.pck );
         end
     endtask 
-	
+    
   endclass : driver
 
 //-----> monitor <---------------------------------------------------------------------------------
 
   class monitor;
-    virtual lab_11_if #( ORDER_TB, WIDTH_TB ) .sink_if mon_if;
+    virtual lab_11_if #( ORDER_TB, WIDTH_TB ) mon_if;
     mailbox mon_mbx;
     packet  pck = new; 
     
@@ -101,7 +97,7 @@ lab_11_inst_tb (
         @( posedge clk_tb );   
         pck.str.data = mon_if.data; 
         this.mon_mbx.put( pck );
-          
+        //$display ( " MON PACKET : %0p ", this.pck );  
       end
     endtask
   endclass : monitor
@@ -130,11 +126,10 @@ lab_11_inst_tb (
             if ( this.pck_o.str !== this.pck_i.str ) 
               begin
                 this.err = this.err + 1;
-				$display( " ERROR COUNT: %0d ", this.err );
-				$display ( "Packages DON't match: %0p / %0p", this.pck_i.str, this.pck_o.str );
+                //$display ( "Packages DON't match: %0p / %0p", this.pck_i.str, this.pck_o.str );
               end
-            else
-              $display ( "OK! packages match: %0p / %0p", this.pck_i.str, this.pck_o.str );
+            //else
+              //$display ( "OK! packages match: %0p / %0p", this.pck_i.str, this.pck_o.str );
 
         end       
       end
@@ -154,8 +149,8 @@ lab_11_inst_tb (
     mailbox   env_inp_mbx;        
     mailbox   env_out_mbx;            
  
-    virtual lab_11_if #( ORDER_TB, WIDTH_TB ) env_if_i;    
-    virtual lab_11_if #( ORDER_TB, WIDTH_TB ) env_if_o;      
+    virtual lab_11_if env_if_i;    
+    virtual lab_11_if env_if_o;      
 
     function new;
       fork

@@ -5,8 +5,8 @@ module lab_11 # ( parameter ORDER = 8,
 (
   input  logic         clk_i,
   input  logic         srst_i,
-  lab_11_if.sink_if    snk_if,
-  lab_11_if.source_if  src_if
+  lab_11_if    snk_if,
+  lab_11_if  src_if
 );
 
 localparam DIV = $clog2( ORDER );
@@ -18,11 +18,14 @@ always_ff @( posedge clk_i )
     data_r [ 0 ] <= snk_if.data; 
     for ( int g = 0; g < ORDER - 1; g ++ )
       data_r [ g + 1 ] <= data_r [ g ];
+	$display ( " DUT DATA REG : %0p ", data_r );
   end
 
 always_ff @( posedge clk_i )
   begin
     src_if.data <= ( data_sum_r >> DIV ) ;  
+	$display ( " \n DUT IF I : %0p ", snk_if.data );
+	$display ( "    DUT IF O : %0p ", src_if.data );
   end
   
 always_comb

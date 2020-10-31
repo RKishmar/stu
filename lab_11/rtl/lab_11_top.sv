@@ -22,12 +22,10 @@ module lab_11_top #( parameter WIDTH = 16,
     .src_if     ( source_if_inst )
   );
 
-
   always_comb 
     begin
       sink_if_inst.data = data_i;
       data_o = source_if_inst.data;
    end
-
 
 endmodule
