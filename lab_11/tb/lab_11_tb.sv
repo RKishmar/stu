@@ -3,15 +3,13 @@
 
 module lab_11_tb; 
 
-  localparam    TEST_ITERS    = 22222;
-  localparam    CLK_HLFPER    = 2; 
-  localparam    WIDTH_TB      = 16;
-  localparam    ORDER_TB      = 8; 
-  localparam    ERR_CNT_SIZE  = 16;  
-  localparam    GEN_DEL_MAdata   = CLK_HLFPER * 8; 
+  localparam CLK_HLFPER  = 2; 
+  localparam TEST_LENGTH = 55555;
+  localparam WIDTH_TB    = 16;
+  localparam ORDER_TB    = 8;  
 
-  logic                   clk_tb;
-  logic                   srst_tb;
+  logic                      clk_tb;
+  logic                      srst_tb;
   logic [ WIDTH_TB - 1 : 0 ] data_tb_i;
   logic [ WIDTH_TB - 1 : 0 ] data_tb_o;
 
@@ -22,23 +20,25 @@ module lab_11_tb;
   
 //-----> DUT inst <-----------------------------------------------------------------------------------
 
-lab_11_top    #(
-  .ORDER       ( ORDER_TB      ),
-  .WIDTH       ( WIDTH_TB      ) )
-lab_11_inst_tb (  
-  .clk_i       ( clk_tb        ),
-  .srst_i      ( srst_tb       ),
-  .data_i      ( top_if_i.data ),
-  .data_o      ( top_if_o.data )
-);
+  lab_11_top    #(
+    .ORDER       ( ORDER_TB      ),
+    .WIDTH       ( WIDTH_TB      ) )
+  lab_11_inst_tb (  
+    .clk_i       ( clk_tb        ),
+    .srst_i      ( srst_tb       ),
+    .data_i      ( top_if_i.data ),
+    .data_o      ( top_if_o.data ) );
 
 //-----> transaction <--------------------------------------------------------------------------------
 
   class packet;
     struct { rand bit [ WIDTH_TB - 1 : 0 ] data; } str;
-        
+    int k = 0;
+    
     function void randomize_packet;
-      this.str.data = $random;
+      begin
+        this.str.data = $random; 
+      end
     endfunction
           
     function void print;
@@ -56,13 +56,12 @@ lab_11_inst_tb (
     task run;
       forever
         begin
+          @( posedge clk_tb );      
           pck.randomize_packet;
           gen_mbx.put( pck );
-          @( posedge clk_tb );
-          //$display ( " GEN PACKET : %0p ", this.pck );
         end
-
-    endtask : run  
+    endtask : run 
+    
   endclass : generator
 
 //-----> driver <--------------------------------------------------------------------------------
@@ -73,15 +72,13 @@ lab_11_inst_tb (
     packet  pck = new;
       
     task run;
-      
       forever 
         begin
+          @ ( posedge clk_tb );     
           dri_mbx.get( pck );
-          drv_if.data  = this.pck.str.data;     
-          @ ( posedge clk_tb );
-		  //$display ( " DRV PACKET : %0p ", this.pck );
+          drv_if.data = this.pck.str.data;     
         end
-    endtask 
+    endtask : run
     
   endclass : driver
 
@@ -94,46 +91,71 @@ lab_11_inst_tb (
     
     task run;
       forever begin
-        @( posedge clk_tb );   
+        @( posedge clk_tb );      
         pck.str.data = mon_if.data; 
         this.mon_mbx.put( pck );
-        //$display ( " MON PACKET : %0p ", this.pck );  
       end
     endtask
+    
   endclass : monitor
 
 //-----> scoreboard <------------------------------------------------------------------------------
 
   class scoreboard;
-    logic [ ERR_CNT_SIZE - 1 : 0 ] err;
 
     mailbox      sbi_mbx;
     mailbox      sbo_mbx;
     packet       pck_i;
     packet       pck_o;
+    int          res = 0;
+    int          err = 0;
+    
+    bit [ WIDTH_TB - 1 : 0 ] data_hld [ ORDER_TB - 1 : 0 ];     
+      
+    task get_true_output ( packet new_pck );
+      bit [ WIDTH_TB + ORDER_TB : 0 ] sum;
+      begin
+        data_hld [ ORDER_TB - 1 : 0 ] = { data_hld [ ORDER_TB - 2 : 0 ], new_pck.str.data }; 
+        sum = 0;
+        for ( int i = 0; i < ORDER_TB; i++ )
+          begin 
+            sum = sum + data_hld [ i ];
+          end   
+        $display ( "    TB SCB FUNC DATA HOLDER : %0p ", data_hld );           
+        res = int '( sum / ORDER_TB );
+      end
+    endtask
+  
   
     task run;
       begin  
         pck_i = new;
         pck_o = new;
-        forever begin 
-          @( posedge clk_tb );
+        
+        @( posedge clk_tb );    
+
+        forever begin
+          
+          get_true_output ( pck_i );  
+          
           fork 
             sbi_mbx.get( pck_i );
             sbo_mbx.get( pck_o );
-          join 
-          $display ( " SCOREBOARD pck_o / pck_i: %p / %p \n", pck_o, pck_i );
-            if ( this.pck_o.str !== this.pck_i.str ) 
-              begin
-                this.err = this.err + 1;
-                //$display ( "Packages DON't match: %0p / %0p", this.pck_i.str, this.pck_o.str );
-              end
-            //else
-              //$display ( "OK! packages match: %0p / %0p", this.pck_i.str, this.pck_o.str );
+          join   
+    
+          if ( this.pck_o.str.data !== res ) 
+            begin
+              this.err = this.err + 1;
+              $display ( "\n--- RESULTS DON'T MATCH (dut/tst): %0d / %0d\n", this.pck_o.str.data, res );
+            end
+          else              
+            $display ( "\nOK! GOT CORRECT RESULTS (dut/tst): %0p / %0p\n", this.pck_o.str.data, res );
+            
+          $display( "    ERROR COUNT: %0d ", this.err );            
+        end  
 
-        end       
       end
-    endtask
+    endtask : run
   endclass : scoreboard
 
 //-----> environment <-----------------------------------------------------------------------------
@@ -183,10 +205,11 @@ lab_11_inst_tb (
           m_o.run;
           g_o.run;
           s_i.run;
-          #200 $stop;
+          #TEST_LENGTH $stop;
         join
+        
       end
-    endtask
+    endtask : run
   
   endclass : environment
 
