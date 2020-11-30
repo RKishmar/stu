@@ -4,14 +4,12 @@
 module lab_11_tb; 
 
   localparam CLK_HLFPER  = 2; 
-  localparam TEST_LENGTH = 55555;
+  localparam TEST_LENGTH = 555555;
   localparam WIDTH_TB    = 16;
   localparam ORDER_TB    = 8;  
 
   logic                      clk_tb;
   logic                      srst_tb;
-  logic [ WIDTH_TB - 1 : 0 ] data_tb_i;
-  logic [ WIDTH_TB - 1 : 0 ] data_tb_o;
 
 //-----> DUT interfaces <-----------------------------------------------------------------------------------
 
@@ -102,7 +100,6 @@ module lab_11_tb;
 //-----> scoreboard <------------------------------------------------------------------------------
 
   class scoreboard;
-
     mailbox      sbi_mbx;
     mailbox      sbo_mbx;
     packet       pck_i;
@@ -125,8 +122,8 @@ module lab_11_tb;
         res = int '( sum / ORDER_TB );
       end
     endtask
-  
-  
+
+    
     task run;
       begin  
         pck_i = new;
@@ -156,6 +153,16 @@ module lab_11_tb;
 
       end
     endtask : run
+            
+    task summarize ();
+      begin
+        $display ( "\n------------------------------------------------------------------------------" );
+        $display ( "\n THE TEST HAS REACHED IT'S FINISH " );
+        $display ( "\n TOTAL ERROR COUNT: %0d \n", this.err ); 
+        $stop;
+      end
+    endtask : summarize
+    
   endclass : scoreboard
 
 //-----> environment <-----------------------------------------------------------------------------
@@ -205,7 +212,7 @@ module lab_11_tb;
           m_o.run;
           g_o.run;
           s_i.run;
-          #TEST_LENGTH $stop;
+          #TEST_LENGTH s_i.summarize();
         join
         
       end
@@ -228,7 +235,7 @@ module lab_11_tb;
   
   endclass : test
 
-//-----> initial <---------------------------------------------------------------------------------
+//-----> main <---------------------------------------------------------------------------------
 
 
   initial // main
@@ -244,9 +251,6 @@ module lab_11_tb;
       clk_tb = 1; #CLK_HLFPER; 
       clk_tb = 0; #CLK_HLFPER;
     end
-
-
-
     
 endmodule
 
